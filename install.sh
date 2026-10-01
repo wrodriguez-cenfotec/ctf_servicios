@@ -20,27 +20,27 @@
 # directorio actual, se usan esos y el argumento del equipo es opcional.
 
 set -euo pipefail
-
+ 
 REPO="${CTF_REPO:-https://github.com/wrodriguez-cenfotec/ctf_servicios}"
 RAMA="${CTF_RAMA:-main}"
 EQUIPO="${1:-}"
 TRABAJO="/opt/ctf/source"
-
+ 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Ejecuta este instalador como root"
   exit 1
 fi
-
+ 
 echo "Instalando dependencias minimas"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y >/dev/null
 apt-get install -y python3 nftables git ca-certificates >/dev/null
-
+ 
 echo "Descargando los archivos del reto desde ${REPO}"
 rm -rf "$TRABAJO"
 mkdir -p /opt/ctf
 git clone --depth 1 --branch "$RAMA" "$REPO" "$TRABAJO" >/dev/null
-
+ 
 # Resolver banderas del equipo
 if [ -f "flags.env" ] && [ -f "hashes.txt" ]; then
   echo "Usando flags.env y hashes.txt del directorio actual"
@@ -61,15 +61,29 @@ else
   echo "Ejemplo de uso, sudo ./install.sh A"
   exit 1
 fi
-
+ 
 chmod 0600 /opt/ctf/flags.env /opt/ctf/hashes.txt
-
+ 
 echo "Copiando los servicios a /opt/ctf"
-install -m 0755 "$TRABAJO/services/ctf_services.py" /opt/ctf/ctf_services.py
-install -m 0755 "$TRABAJO/services/ctf_submission.py"  /opt/ctf/ctf_submission.py
+# Los archivos se buscan por nombre dentro del clon, funcionen en carpetas o en la raiz
+buscar() { find "$TRABAJO" -type f -name "$1" -print -quit; }
+SVC_SERVICIOS="$(buscar ctf_services.py)"
+SVC_ENTREGA="$(buscar ctf_submission.py)"
+UNIT_SERVICIOS="$(buscar ctf-services.service)"
+UNIT_ENTREGA="$(buscar ctf-submission.service)"
+for par in "ctf_services.py:$SVC_SERVICIOS" "ctf_submission.py:$SVC_ENTREGA" "ctf-services.service:$UNIT_SERVICIOS" "ctf-submission.service:$UNIT_ENTREGA"; do
+  nombre="${par%%:*}"; ruta="${par#*:}"
+  if [ -z "$ruta" ]; then
+    echo "No se encontro $nombre en el repositorio clonado"
+    echo "Verifica que ese archivo exista en https://github.com/wrodriguez-cenfotec/ctf_servicios"
+    exit 1
+  fi
+done
+install -m 0755 "$SVC_SERVICIOS" /opt/ctf/ctf_services.py
+install -m 0755 "$SVC_ENTREGA"   /opt/ctf/ctf_submission.py
 touch /opt/ctf/submissions.jsonl
 chmod 0600 /opt/ctf/submissions.jsonl
-
+ 
 echo "Configurando el puerto filtrado para la pregunta 7"
 # El puerto 23 se descarta en silencio, aparece como filtered en el escaneo.
 # El puerto 3389 no escucha y no se descarta, el kernel responde RST, aparece closed.
@@ -86,14 +100,14 @@ table inet reto {
 NFT
 systemctl enable --now nftables >/dev/null
 nft -f /etc/nftables.conf
-
+ 
 echo "Instalando los servicios systemd"
-install -m 0644 "$TRABAJO/systemd/ctf-services.service" /etc/systemd/system/ctf-services.service
-install -m 0644 "$TRABAJO/systemd/ctf-submission.service"   /etc/systemd/system/ctf-submission.service
+install -m 0644 "$UNIT_SERVICIOS" /etc/systemd/system/ctf-services.service
+install -m 0644 "$UNIT_ENTREGA"   /etc/systemd/system/ctf-submission.service
 systemctl daemon-reload
 systemctl enable --now ctf-services.service
 systemctl enable --now ctf-submission.service
-
+ 
 echo
 echo "Instalacion terminada"
 echo "Servicios de escaneo activos en 21, 80, 161 udp, 1337, 8080, 50000 tcp y udp, 54321"
