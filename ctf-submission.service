@@ -1,0 +1,17 @@
+[Unit]
+Description=Entrega y verificacion del reto
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=CTF_HASHES=/opt/ctf/hashes.txt
+Environment=CTF_REGISTRO=/opt/ctf/submissions.jsonl
+Environment=CTF_PUERTO=8000
+ExecStart=/usr/bin/python3 /opt/ctf/ctf_submission.py
+Restart=always
+RestartSec=2
+User=root
+
+[Install]
+WantedBy=multi-user.target

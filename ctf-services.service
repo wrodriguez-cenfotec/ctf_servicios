@@ -1,0 +1,15 @@
+[Unit]
+Description=Servicios dummy SEM5
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=CTF_FLAGS=/opt/ctf/flags.env
+ExecStart=/usr/bin/python3 /opt/ctf/ctf_services.py
+Restart=always
+RestartSec=2
+User=root
+
+[Install]
+WantedBy=multi-user.target
